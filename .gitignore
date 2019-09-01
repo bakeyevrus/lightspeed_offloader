@@ -1,0 +1,14 @@
+*/__pycache__
+
+venv/
+
+# App specific
+logs/
+tmp/
+
+# Encrypted passwords
+*.enc
+
+# IDE specific
+.vscode/
+.idea/
