@@ -3,7 +3,7 @@ import logging.config
 import os
 import yaml
 from datetime import datetime
-from .process_order_exception import ProcessOrderException
+from shared.process_order_exception import ProcessOrderException
 
 TMP_FOLDER = "tmp"
 CSV_DIALECT = "dial"
@@ -302,7 +302,7 @@ def run(config_path):
     """
 
     # get values from the config file
-    from .config_parser import ConfigParser
+    from shared.config_parser import ConfigParser
     config_parser = None
     try:
         config_parser = ConfigParser(config_path)

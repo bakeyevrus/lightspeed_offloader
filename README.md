@@ -58,6 +58,9 @@ Each of the modules uses the same application and log configs. See below for a c
 
 Note the quotes in the *Example* column.
 
+## Deployment
+In progress...
+
 ## Docker for development
 To develop inside the Docker container **from the root directory** execute the following (for Windows only):
 ```shell script

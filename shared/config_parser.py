@@ -1,5 +1,6 @@
 import logging
 import yaml
+from .password_encryption import decrypt
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +23,6 @@ class ConfigParser:
         Creates sftp client based on the provided config
         :return: an instance of SFTPClient class
         """
-        from .password_encryption import decrypt
         from .sftp_client import SFTPClient
 
         sftp_host = self.config["sftp-host"]
@@ -49,7 +49,6 @@ class ConfigParser:
         Creates Lightspeed client based on the provided config
         :return: an instance of LightspeedClient class
         """
-        from .password_encryption import decrypt
         from .lightspeed_client import LightspeedClient
 
         lspeed_api_url = self.config["lightspeed-api-url"]
