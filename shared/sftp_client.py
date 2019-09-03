@@ -16,10 +16,9 @@ class SFTPClient:
     :param input_dir: (str) input folder located on SFTP server to fetch files from
     :param output_dir: (str) output folder located on SFTP server to place files into
     :param archive_dir: (str) archive folder located on SFTP server to place files into
-    :param error_dir: (str) error folder located on SFTP server to place files into
     """
 
-    def __init__(self, host, port, username, password, input_dir, output_dir, archive_dir, error_dir):
+    def __init__(self, host, port, username, password, input_dir, output_dir, archive_dir):
         self.host = host
         self.port = port
         self.username = username
@@ -27,7 +26,6 @@ class SFTPClient:
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.archive_dir = archive_dir
-        self.error_dir = error_dir
         self.sftp = self._init_client()
 
     def _init_client(self):
@@ -39,15 +37,25 @@ class SFTPClient:
 
         return sftp
 
+    def _list_files(self, target_dir):
+        return map(
+            lambda file_name: os.path.join(target_dir, file_name),
+            self.sftp.listdir(target_dir)
+        )
+
     def list_input_files(self):
         """
-        List all files from SFTP 'input_dir' directory, i.e from directory containing exported orders
-        :return: an array of absolute paths to the files on SFTP server
+        List all files of SFTP 'input_dir' directory, i.e from the directory containing exported orders.
+        :return: an array of absolute paths of the files on SFTP server
         """
-        return map(
-            lambda file_name: os.path.join(self.input_dir, file_name),
-            self.sftp.listdir(self.input_dir)
-        )
+        return self._list_files(self.input_dir)
+
+    def list_output_files(self):
+        """
+        List all files of SFTP 'output_dir' directory. i.e from the directory containing orders confirmation.
+        :return: an array of absolute paths of the files on SFTP server
+        """
+        return self._list_files(self.output_dir)
 
     def get_file(self, path):
         """
@@ -69,16 +77,9 @@ class SFTPClient:
         log.debug(f"Archiving file {path} to {target_dir}")
         self.sftp.rename(path, target_dir)
 
-    def upload_error_file(self, error_orders_csv_path: str):
-        """
-        Uploads CSV file with error orders into the 'error_dir' folder on SFTP server
-        :param error_orders_csv_path: (str) absolute path to the file with error orders
-        """
-        file_name = os.path.basename(error_orders_csv_path)
-        target_dir = os.path.join(self.error_dir, file_name)
-
-        log.debug(f"Uploading {error_orders_csv_path} into SFTP {target_dir}")
-        self.sftp.put(error_orders_csv_path, target_dir)
+    def _upload_file(self, source_path, dest_path):
+        log.debug(f"Uploading {source_path} into SFTP {dest_path}")
+        self.sftp.put(source_path, dest_path)
 
     def upload_processed_orders(self, processed_orders_csv_path: str):
         """
@@ -88,8 +89,8 @@ class SFTPClient:
         file_name = os.path.basename(processed_orders_csv_path)
         target_dir = os.path.join(self.output_dir, file_name)
 
-        log.debug(f"Uploading {processed_orders_csv_path} into SFTP {target_dir}")
-        self.sftp.put(processed_orders_csv_path, target_dir)
+        self._upload_file(processed_orders_csv_path, target_dir)
 
     def __del__(self):
-        self.sftp.close()
+        if self.sftp:
+            self.sftp.close()

@@ -48,7 +48,6 @@ Each of the modules uses the same application and log configs. See below for a c
 | sftp-input-folder            | A folder on the SFTP server, which contains exported eCommerce orders in CSV format.                                                        | "out"                            |
 | sftp-output-folder           | A folder on the SFTP server, which contains order statuses in CSV format.                                                                   | "in"                             |
 | sftp-archive-folder          | A folder on the SFTP server, which processed, 'confirmed', or 'shipped' orders moved to.                                                    | "archiv"                         |
-| sftp-error-folder            | A folder on the SFTP server, which contains both the exported orders, and order statuses that should be processed manually due to an error. | "error"                          |
 | lightspeed-api-url           | Base URL for the Lightspeed shop.                                                                                                           | "https://api.webshopapp.com/nl"  |
 | lightspeed-api-key           | Lightspeed shop API key. See [docs](https://developers.lightspeedhq.com/ecom/introduction/authentication/).                                 | "somerandomekey"                 |
 | lightspeed-api-secret-path   | Path to the encrypted Lightspeed API secret token.                                                                                          | "./config/lightspeed-secret.enc" |

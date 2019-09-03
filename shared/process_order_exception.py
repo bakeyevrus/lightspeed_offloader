@@ -1,2 +1,0 @@
-class ProcessOrderException(Exception):
-    pass

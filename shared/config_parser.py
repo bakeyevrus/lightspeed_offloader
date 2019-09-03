@@ -39,10 +39,9 @@ class ConfigParser:
         sftp_input_dir = self.config["sftp-input-folder"]
         sftp_output_dir = self.config["sftp-output-folder"]
         sftp_archive_dir = self.config["sftp-archive-folder"]
-        sftp_error_dir = self.config["sftp-error-folder"]
 
         return SFTPClient(sftp_host, sftp_port, sftp_user, sftp_password, sftp_input_dir, sftp_output_dir,
-                          sftp_archive_dir, sftp_error_dir)
+                          sftp_archive_dir)
 
     def create_lightspeed_client(self):
         """

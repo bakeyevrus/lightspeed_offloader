@@ -6,6 +6,12 @@ formatters:
     format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simple
+    stream: ext://sys.stdout
+
   info_file_handler:
     class: logging.handlers.RotatingFileHandler
     level: INFO
@@ -25,6 +31,6 @@ handlers:
     encoding: utf8
 
 root:
-  level: INFO
-  handlers: [info_file_handler, error_file_handler]
+  level: DEBUG
+  handlers: [console, info_file_handler, error_file_handler]
 ...

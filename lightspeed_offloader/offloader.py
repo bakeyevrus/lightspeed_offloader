@@ -1,12 +1,21 @@
 import csv
 import logging.config
 import os
-import yaml
-from datetime import datetime
-from shared.process_order_exception import ProcessOrderException
+import shutil
+from datetime import datetime, timedelta
 
+import yaml
+
+from shared.const.csv_column_names import ExportedOrderCSV, OrderConfirmationCSV
+from shared.exceptions import ProcessOrderException, UnexpectedHTTPStatusCodeException
+
+"""Folder name in which temporary files are stored"""
 TMP_FOLDER = "tmp"
-CSV_DIALECT = "dial"
+"""The name of custom CSV dialect registered at the start of the app."""
+CSV_DIALECT_NAME = "dial"
+"""Email suffix used in the output CSV files."""
+EMAIL_SUFFIX = "@westfalia.eu"
+
 log = logging.getLogger(__name__)
 
 
@@ -26,52 +35,46 @@ def _process_files(sftp_client, lightspeed_client, lightspeed_shipment_id, light
         log.warning("No new files detected")
         return
 
-    first_iter = True
+    orders_to_save = []
     for file_path in files_to_process:
-        if not first_iter:
-            break
-        first_iter = False
-
         log.info(f"Processing file {file_path}")
         file = sftp_client.get_file(file_path)
 
         log.debug(f"Parsing file {file_path}")
         parsed_file = csv.DictReader(file, delimiter=';')
 
-        (processed_orders, skipped_orders) = _process_file(parsed_file,
-                                                           lightspeed_client,
-                                                           lightspeed_shipment_id,
-                                                           lightspeed_shipment_value_id
-                                                           )
+        processed_orders = _process_file(parsed_file,
+                                         lightspeed_client,
+                                         lightspeed_shipment_id,
+                                         lightspeed_shipment_value_id
+                                         )
 
         file.close()
 
         sftp_client.archive_file(file_path)
+        orders_to_save.extend(processed_orders)
 
-        if processed_orders:
-            processed_orders_csv = _create_processed_orders_csv(processed_orders)
-            sftp_client.upload_processed_orders(processed_orders_csv)
-
-        if skipped_orders:
-            error_orders_csv = _create_error_orders_csv(skipped_orders, parsed_file.fieldnames)
-            sftp_client.upload_error_file(error_orders_csv)
+    if orders_to_save:
+        processed_orders_csv = _create_processed_orders_csv(orders_to_save)
+        sftp_client.upload_processed_orders(processed_orders_csv)
+    else:
+        log.warning("No orders have processed")
 
 
 def _process_file(file, lightspeed_client, lightspeed_shipment_id, lightspeed_shipment_value_id):
-    skipped_orders = []
     processed_orders = []
 
     for row in file:
         try:
             order_id = _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_shipment_value_id)
-            log.debug(f"Order {order_id} has been successfully created")
+            log.info(f"Order with {order_id} has been successfully created for {row[ExportedOrderCSV.ORDER_ID]}")
             order = _create_order_confirmation(order_id, row)
             processed_orders.append(order)
-        except ProcessOrderException:
-            log.warning(f"Skipping order {row[CSV_ORDER_ID_COL]}")
-            skipped_orders.append(row)
+        except (ProcessOrderException, UnexpectedHTTPStatusCodeException) as e:
+            log.error(f"Error occurred while processing order {row[ExportedOrderCSV.ORDER_ID]}")
+            log.error(str(e))
 
-    return processed_orders, skipped_orders
+    return processed_orders
 
 
 def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_shipment_value_id):
@@ -89,13 +92,11 @@ def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_ship
     if not checkout["payment_method"]:
         err_message = (f"Failed to add payment method to checkout {checkout_id}\n"
                        f"Checkout: {checkout}")
-        log.error(err_message)
         raise ProcessOrderException(err_message)
 
     if not checkout["shipment_method"]:
         err_message = (f"Failed to add shipment method to checkout {checkout_id}\n"
                        f"Checkout: {checkout}")
-        log.error(err_message)
         raise ProcessOrderException(err_message)
 
     validation = lightspeed_client.validate_checkout(checkout_id)
@@ -104,7 +105,6 @@ def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_ship
         err_message = (f"Checkout {checkout_id} haven't passed validation\n"
                        f"Validation errors: {validation['errors']}\n"
                        f"Checkout: {checkout}")
-        log.error(err_message)
         raise ProcessOrderException(err_message)
 
     order_id = lightspeed_client.finish_checkout(checkout_id)
@@ -113,61 +113,32 @@ def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_ship
     order = lightspeed_client.update_order_payment_status(order_id, payment_status)
     if order["paymentStatus"] != "paid":
         err_message = f"Failed to update payment status of order {order_id}"
-        log.error(err_message)
         raise ProcessOrderException(err_message)
 
     return order_id
 
 
-# TODO: implement
-def _create_processed_orders_csv(processed_orders):
-    timestamp = datetime.now()
-    file_name = f"H-{timestamp.strftime('%Y%m%d-%H%M')}.csv"
+def _create_processed_orders_csv(processed_orders, timestamp_offset: int = 1):
+    """
+    Serializes processed orders into CSV file
+    :param processed_orders: (arr) an array of processed orders to serialize
+    :param timestamp_offset: (number) number of minutes to add to the timestamp, which is used in file name
+    :return: an absolute path to the created CSV file
+    """
+
+    timestamp = datetime.now() + timedelta(minutes=timestamp_offset)
+    file_name = f"S-{timestamp.strftime('%Y%m%d-%H%M')}.csv"
     file_path = os.path.join(TMP_FOLDER, file_name)
 
     log.debug(f"Creating file {file_path} with processed orders")
     with open(file_path, "w") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=_get_confirmation_csv_header(), dialect=CSV_DIALECT)
+        writer = csv.DictWriter(csvfile, fieldnames=OrderConfirmationCSV.FIELDNAMES, dialect=CSV_DIALECT_NAME)
         writer.writeheader()
         writer.writerows(processed_orders)
 
         csvfile.close()
 
     return file_path
-
-
-def _create_error_orders_csv(error_orders, csv_header):
-    timestamp = datetime.now()
-    file_name = f"PO-{timestamp.strftime('%Y%m%d-%H%M')}.csv"
-    file_path = os.path.join(TMP_FOLDER, file_name)
-
-    log.debug(f"Creating file {file_path} with error orders")
-    with open(file_path, "w") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=csv_header, dialect=CSV_DIALECT)
-        writer.writeheader()
-        writer.writerows(error_orders)
-
-        csvfile.close()
-
-    return file_path
-
-
-CSV_ORDER_ID_COL = "Belegnummer"
-CSV_FIRST_NAME_COL = "Lieferadresse_Vorname"
-CSV_LAST_NAME_COL = "Lieferadresse_Nachname"
-CSV_EMAIL_COL = "Belegnummer"
-EMAIL_SUFFIX = "@westfalia.eu"
-CSV_ADDRESS_STREET_COL = "Lieferadresse_Strasse"
-CSV_ADDRESS_HOUSE_COL = "Lieferadresse_Hausnummer"
-CSV_COMPANY_COL = "Lieferadresse_Firma"
-CSV_ZIP_COL = "Lieferadresse_Postleitzahl"
-CSV_CITY_COL = "Lieferadresse_Ort"
-CSV_COUNTRY_COL = "Lieferadresse_Land"
-CSV_EAN_COL = "Artikelnummer"
-CSV_QUANTITY_COL = "Menge"
-CSV_PRICE_COL = "EK-Preis"
-CSV_POSITION_NUM_COL = "Positionsnummer"
-CSV_STATUS_COL = "Status"
 
 
 def _generate_checkout(row):
@@ -177,34 +148,28 @@ def _generate_checkout(row):
     :return: a checkout dictionary representation
     """
 
+    def _generate_address(exported_order):
+        return {
+            "name": exported_order[ExportedOrderCSV.FIRST_NAME] + " " + exported_order[ExportedOrderCSV.LAST_NAME],
+            "address1": exported_order[ExportedOrderCSV.ADDRESS_STREET] + " " + exported_order[
+                ExportedOrderCSV.ADDRESS_HOUSE],
+            "address2": exported_order[ExportedOrderCSV.COMPANY],
+            "zipcode": exported_order[ExportedOrderCSV.ZIP],
+            "city": exported_order[ExportedOrderCSV.CITY],
+            "country": exported_order[ExportedOrderCSV.COUNTRY],
+            # House number should be -1 as has been agreed with business
+            "number": "-1"
+        }
+
     customer = {
-        "firstname": row[CSV_FIRST_NAME_COL],
-        "lastname": row[CSV_LAST_NAME_COL],
-        "email": row[CSV_EMAIL_COL] + EMAIL_SUFFIX,
+        "firstname": row[ExportedOrderCSV.FIRST_NAME],
+        "lastname": row[ExportedOrderCSV.LAST_NAME],
+        "email": row[ExportedOrderCSV.EMAIL] + EMAIL_SUFFIX,
         "phone": "0"
     }
 
-    billing_address = {
-        "name": row[CSV_FIRST_NAME_COL] + " " + row[CSV_LAST_NAME_COL],
-        "address1": row[CSV_ADDRESS_STREET_COL] + " " + row[CSV_ADDRESS_HOUSE_COL],
-        "address2": row[CSV_COMPANY_COL],
-        "zipcode": row[CSV_ZIP_COL],
-        "city": row[CSV_CITY_COL],
-        "country": row[CSV_COUNTRY_COL],
-        # House number should be empty as has been agreed with business
-        "number": "-1"
-    }
-
-    shipping_address = {
-        "name": row[CSV_FIRST_NAME_COL] + " " + row[CSV_LAST_NAME_COL],
-        "address1": row[CSV_ADDRESS_STREET_COL] + " " + row[CSV_ADDRESS_HOUSE_COL],
-        "address2": row[CSV_COMPANY_COL],
-        # House number should be empty as has been agreed with business
-        "number": "-1",
-        "zipcode": row[CSV_ZIP_COL],
-        "city": row[CSV_CITY_COL],
-        "country": row[CSV_COUNTRY_COL]
-    }
+    billing_address = _generate_address(row)
+    shipping_address = _generate_address(row)
 
     order = {
         "customer": customer,
@@ -217,7 +182,7 @@ def _generate_checkout(row):
 
 
 def _get_variant_id(row, lightspeed_client):
-    product_ean = row[CSV_EAN_COL]
+    product_ean = row[ExportedOrderCSV.EAN]
 
     variants = lightspeed_client.get_all_product_variants()
 
@@ -225,23 +190,21 @@ def _get_variant_id(row, lightspeed_client):
         if variant["ean"] == product_ean:
             return variant["id"]
 
-    err_message = f"Cannot find product variant with EAN {product_ean}"
-    log.error(err_message)
-    raise ProcessOrderException(err_message)
+    raise ProcessOrderException(f"Cannot find product variant with EAN {product_ean}")
 
 
 def _generate_product_for_checkout(row, variant_id):
-    product_quantity = row[CSV_QUANTITY_COL]
-    product_price = row[CSV_PRICE_COL]
-    country = row[CSV_COUNTRY_COL]
+    product_quantity = row[ExportedOrderCSV.QUANTITY]
+    product_price = row[ExportedOrderCSV.PRICE]
+    country = row[ExportedOrderCSV.COUNTRY]
 
     product = {
         "variant_id": variant_id,
         "quantity": product_quantity
     }
 
-    # Business requirement
-    if country == "NL":
+    # Special business requirement for Netherlands
+    if country == "NL" or country == "nl":
         product["special_price_incl"] = product_price
     else:
         product["special_price_excl"] = product_price
@@ -251,7 +214,7 @@ def _generate_product_for_checkout(row, variant_id):
 
 def _generate_shipment_and_payment_methods(lightspeed_shipment_id, lightspeed_shipment_value_id):
     shipment_method = {
-        "id": "core|" + lightspeed_shipment_id + "|" + lightspeed_shipment_value_id
+        "id": f"core|{lightspeed_shipment_id}|{lightspeed_shipment_value_id}"
     }
 
     # Payment method should be external and have 0 price
@@ -278,19 +241,15 @@ def _generate_payment_status():
 
 def _create_order_confirmation(order_id, row):
     from collections import OrderedDict
+    from shared.const.order_statuses import CONFIRMED
 
     order_dict = OrderedDict()
-    order_dict[CSV_ORDER_ID_COL] = order_id
-    order_dict[CSV_POSITION_NUM_COL] = row[CSV_POSITION_NUM_COL]
-    order_dict[CSV_QUANTITY_COL] = row[CSV_QUANTITY_COL]
-    order_dict[CSV_STATUS_COL] = 'confirmed'
+    order_dict[OrderConfirmationCSV.ORDER_ID] = order_id
+    order_dict[OrderConfirmationCSV.POSITION_NUM] = row[ExportedOrderCSV.POSITION_NUM]
+    order_dict[OrderConfirmationCSV.QUANTITY] = row[ExportedOrderCSV.QUANTITY]
+    order_dict[OrderConfirmationCSV.STATUS] = CONFIRMED
 
     return order_dict
-
-
-def _get_confirmation_csv_header():
-    return [CSV_ORDER_ID_COL, CSV_POSITION_NUM_COL, CSV_QUANTITY_COL, CSV_STATUS_COL, "Trackingnummer", "Frachtfuehrer",
-            "Trackinglink", "Warenausgangsdatum"]
 
 
 def run(config_path):
@@ -301,8 +260,9 @@ def run(config_path):
     :return: exit code 0 if terminated successfully, 1 otherwise
     """
 
-    # get values from the config file
     from shared.config_parser import ConfigParser
+    from paramiko.ssh_exception import SSHException
+    # get values from the config file
     config_parser = None
     try:
         config_parser = ConfigParser(config_path)
@@ -310,8 +270,11 @@ def run(config_path):
         log.critical("Load of config file %s failed. Check correctness of the config file.", config_path)
         return 1
 
-    sftp_client = config_parser.create_sftp_client()
-    if not sftp_client:
+    sftp_client = None
+    try:
+        sftp_client = config_parser.create_sftp_client()
+    except SSHException as e:
+        log.critical(f"Cannot connect to SFTP server. Error message: {e}")
         return 1
 
     lspeed_client = config_parser.create_lightspeed_client()
@@ -327,24 +290,22 @@ def run(config_path):
     os.makedirs(TMP_FOLDER, exist_ok=True)
 
     # Register CSV dialect
-    csv.register_dialect(CSV_DIALECT, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\n")
+    csv.register_dialect(CSV_DIALECT_NAME, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\n")
 
     _process_files(sftp_client, lspeed_client, lspeed_shipment_id, lspeed_shipment_value_id)
 
-    # Test code
+    # # Test code
     # file = None
     # try:
     #     file = open("SAMPLE.csv", "r")
     #     parsed_file = csv.DictReader(file, delimiter=';')
     #
-    #     (processed_orders, skipped_orders) = _process_file(parsed_file, lspeed_client, lspeed_shipment_id,
-    #                                                        lspeed_shipment_value_id)
-    #     error_orders_csv = _create_error_orders_csv(skipped_orders, parsed_file.fieldnames)
-    #     sftp_client.upload_error_file(error_orders_csv)
+    #     processed_orders = _process_file(parsed_file, lspeed_client, lspeed_shipment_id,
+    #                                      lspeed_shipment_value_id)
     # finally:
     #     if file:
     #         file.close()
 
     log.debug(f"Removing temp '{TMP_FOLDER}' folder")
-    os.removedirs(TMP_FOLDER)
+    shutil.rmtree(TMP_FOLDER)
     return 0

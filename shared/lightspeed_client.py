@@ -1,13 +1,14 @@
 import logging
 import requests
 from base64 import b64encode
-from .process_order_exception import ProcessOrderException
+from .exceptions import UnexpectedHTTPStatusCodeException
 
 CHECKOUT_ENDPOINT = "/checkouts.json"
 VARIANT_ENDPOINT = "/variants.json"
 PRODUCT_ENDPOINT = "/products.json"
 VALIDATE_ENDPOINT = "/validate.json"
 ORDER_ENDPOINT = "/order.json"
+SHIPMENT_ENDPOINT = "/shipments.json"
 
 
 # In case of performance issues see https://2.python-requests.org/en/master/user/advanced/#session-objects
@@ -156,6 +157,44 @@ class LightspeedClient:
         response_body = response.json()
         return response_body["order"]
 
+    def get_order_status(self, order_id: str):
+        """
+        Retrieves order status based on provided id.
+        See https://developers.lightspeedhq.com/ecom/endpoints/order/#get-retrieve-an-order.
+        :param order_id: order id
+        :return: order status string
+        """
+        self.log.debug(f"Retrieving order status for order {order_id}")
+
+        headers = {"Authorization": self._get_auth_header()}
+        req_url = f"{self.api_url}/orders/{order_id}.json"
+
+        response = requests.get(req_url, headers=headers)
+
+        self._validate_response_status_code(response, 200, req_url, "GET")
+
+        response_body = response.json()
+        return response_body["order"]["status"]
+
+    def get_shipment_for_order(self, order_id: str):
+        """
+        Retrieves shipment object for provided order id
+        :param order_id: order id to fetch shipment information for
+        :return: an array of shipment objects
+        """
+        self.log.debug(f"Retrieving shipment tracking number for order {order_id}")
+
+        headers = {"Authorization": self._get_auth_header()}
+        params = {"order": order_id}
+        req_url = f"{self.api_url}{SHIPMENT_ENDPOINT}"
+
+        response = requests.get(req_url, headers=headers, params=params)
+
+        self._validate_response_status_code(response, 200, req_url, "GET")
+
+        response_body = response.json()
+        return response_body["shipments"]
+
     def _validate_response_status_code(self, response, expected_status, req_url, req_method):
         if response.status_code != expected_status:
             err_message = (
@@ -163,5 +202,4 @@ class LightspeedClient:
                 f"Expected code {expected_status}\n"
                 f"Response body: {response.content}"
             )
-            self.log.error(err_message)
-            raise ProcessOrderException(err_message)
+            raise UnexpectedHTTPStatusCodeException(err_message)
