@@ -39,7 +39,7 @@ def _process_all_files(sftp_client: SFTPClient, lspeed_client: LightspeedClient)
 
         file_name = os.path.basename(file_path)
         if all_orders_shipped and _is_file_older_than(file_name, FILE_ARCHIVE_PERIOD):
-            log.info(f"Archiving file ${file_name}.")
+            log.info(f"Archiving file {file_name}.")
             sftp_client.archive_file(file_path)
 
     shipped_orders = _process_all_confirmed_orders(orders_map, lspeed_client)
@@ -53,7 +53,6 @@ def _process_all_files(sftp_client: SFTPClient, lspeed_client: LightspeedClient)
 
 
 def _process_file(file, orders_map: dict):
-    log.debug(f"Parsing file {file.name}.")
     file_reader = csv.DictReader(file, delimiter=";")
 
     all_orders_shipped = True
@@ -192,11 +191,11 @@ def run(config_path: str):
     #     if all_orders_shipped and _is_file_older_than(file_name, FILE_ARCHIVE_PERIOD):
     #         log.info(f"Archiving file ${file_name}")
 
-    shipped_orders = _process_all_confirmed_orders(orders_map, lspeed_client)
-
-    if shipped_orders:
-        log.debug(f"Saving {len(shipped_orders)} shipped orders into a CSV file.")
-        csv_writer.save_orders_as_csv(TMP_FOLDER, shipped_orders, OrderConfirmationCSV.FIELDNAMES)
+    # shipped_orders = _process_all_confirmed_orders(orders_map, lspeed_client)
+    #
+    # if shipped_orders:
+    #     log.debug(f"Saving {len(shipped_orders)} shipped orders into a CSV file.")
+    #     csv_writer.save_orders_as_csv(TMP_FOLDER, shipped_orders, OrderConfirmationCSV.FIELDNAMES)
 
     log.debug(f"Removing temp '{TMP_FOLDER}' folder")
     shutil.rmtree(TMP_FOLDER)
