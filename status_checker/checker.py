@@ -147,7 +147,9 @@ def _create_shipped_order(order_details: dict, tracking_code, shipment_carrier="
 
 def run(config_path: str):
     """
-    Runs status checker module
+    Runs status checker module. It starts with iterating over all order status CSV files, and building a hash map with
+    orders needs to be checked. After every order status has been checked, new file with the newly shipped orders is
+    created.
     :param config_path: path to the configuration YAML file
     :return: status code 0 if terminated successfully, otherwise 1
     """
@@ -175,20 +177,20 @@ def run(config_path: str):
     log.debug(f"Creating temp '{TMP_FOLDER}' folder")
     os.makedirs(TMP_FOLDER, exist_ok=True)
 
-    # _process_all_files(sftp_client, lspeed_client)
+    _process_all_files(sftp_client, lspeed_client)
     # Test code
-    orders_map = {}
-    for file_path in ["SAMPLE_STATUS.csv", "tmp/S-20190904-1316.csv"]:
-        log.info(f"Processing file {file_path}")
-        file = open(file_path, "r")
-
-        all_orders_shipped = _process_file(file, orders_map)
-
-        file.close()
-
-        file_name = os.path.basename(file_path)
-        if all_orders_shipped and _is_file_older_than(file_name, FILE_ARCHIVE_PERIOD):
-            log.info(f"Archiving file ${file_name}")
+    # orders_map = {}
+    # for file_path in ["SAMPLE_STATUS.csv", "tmp/S-20190904-1316.csv"]:
+    #     log.info(f"Processing file {file_path}")
+    #     file = open(file_path, "r")
+    #
+    #     all_orders_shipped = _process_file(file, orders_map)
+    #
+    #     file.close()
+    #
+    #     file_name = os.path.basename(file_path)
+    #     if all_orders_shipped and _is_file_older_than(file_name, FILE_ARCHIVE_PERIOD):
+    #         log.info(f"Archiving file ${file_name}")
 
     shipped_orders = _process_all_confirmed_orders(orders_map, lspeed_client)
 
@@ -197,6 +199,6 @@ def run(config_path: str):
         csv_writer.save_orders_as_csv(TMP_FOLDER, shipped_orders, OrderConfirmationCSV.FIELDNAMES)
 
     log.debug(f"Removing temp '{TMP_FOLDER}' folder")
-    # shutil.rmtree(TMP_FOLDER)
+    shutil.rmtree(TMP_FOLDER)
 
     return 0
