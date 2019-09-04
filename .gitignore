@@ -1,6 +1,5 @@
+# Cache
 */__pycache__
-
-venv/
 
 # App specific
 logs/
@@ -12,3 +11,4 @@ tmp/
 # IDE specific
 .vscode/
 .idea/
+venv/

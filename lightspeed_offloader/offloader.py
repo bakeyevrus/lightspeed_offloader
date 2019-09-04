@@ -2,17 +2,15 @@ import csv
 import logging.config
 import os
 import shutil
-from datetime import datetime, timedelta
 
 import yaml
 
+from shared import csv_writer
 from shared.const.csv_column_names import ExportedOrderCSV, OrderConfirmationCSV
 from shared.exceptions import ProcessOrderException, UnexpectedHTTPStatusCodeException
 
 """Folder name in which temporary files are stored"""
 TMP_FOLDER = "tmp"
-"""The name of custom CSV dialect registered at the start of the app."""
-CSV_DIALECT_NAME = "dial"
 """Email suffix used in the output CSV files."""
 EMAIL_SUFFIX = "@westfalia.eu"
 
@@ -55,7 +53,8 @@ def _process_files(sftp_client, lightspeed_client, lightspeed_shipment_id, light
         orders_to_save.extend(processed_orders)
 
     if orders_to_save:
-        processed_orders_csv = _create_processed_orders_csv(orders_to_save)
+        processed_orders_csv = csv_writer.save_orders_as_csv(TMP_FOLDER, orders_to_save,
+                                                             OrderConfirmationCSV.FIELDNAMES)
         sftp_client.upload_processed_orders(processed_orders_csv)
     else:
         log.warning("No orders have processed")
@@ -116,29 +115,6 @@ def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_ship
         raise ProcessOrderException(err_message)
 
     return order_id
-
-
-def _create_processed_orders_csv(processed_orders, timestamp_offset: int = 1):
-    """
-    Serializes processed orders into CSV file
-    :param processed_orders: (arr) an array of processed orders to serialize
-    :param timestamp_offset: (number) number of minutes to add to the timestamp, which is used in file name
-    :return: an absolute path to the created CSV file
-    """
-
-    timestamp = datetime.now() + timedelta(minutes=timestamp_offset)
-    file_name = f"S-{timestamp.strftime('%Y%m%d-%H%M')}.csv"
-    file_path = os.path.join(TMP_FOLDER, file_name)
-
-    log.debug(f"Creating file {file_path} with processed orders")
-    with open(file_path, "w") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=OrderConfirmationCSV.FIELDNAMES, dialect=CSV_DIALECT_NAME)
-        writer.writeheader()
-        writer.writerows(processed_orders)
-
-        csvfile.close()
-
-    return file_path
 
 
 def _generate_checkout(row):
@@ -288,9 +264,6 @@ def run(config_path):
     # Create temp folder
     log.debug(f"Creating temp '{TMP_FOLDER}' folder")
     os.makedirs(TMP_FOLDER, exist_ok=True)
-
-    # Register CSV dialect
-    csv.register_dialect(CSV_DIALECT_NAME, delimiter=";", quoting=csv.QUOTE_ALL, lineterminator="\n")
 
     _process_files(sftp_client, lspeed_client, lspeed_shipment_id, lspeed_shipment_value_id)
 
