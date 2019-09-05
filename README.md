@@ -12,11 +12,13 @@ The application consists of two modules.
 - *crontab* tool for Linux
 
 ## Installation
+This section covers application installation topic for **development purposes**. Installation instructions for **production**
+environment is located in section *Deployment*.
 1. In order to install application dependencies execute from the root directory:
     ```shell script
     pip install -r requirements.txt
     ``` 
-2. If you are using the standard log config, make sure that `log/` folder exists in the directory from which you are 
+2. If you are using the standard log config, make sure that `logs/` folder exists in the directory from which you are 
    starting the script.
 3. The application requires SFTP password and Lightspeed API secret to be present in config file. For the sake of security,
     these strings should be encrypted using `password_encryption.py` utility. From the root directory execute:
@@ -24,6 +26,7 @@ The application consists of two modules.
     python common/password_encryption.py -w <path_to_the_output_file>.enc
     ```
    You will be asked for the master password, which should be added to the application config. 
+
 
 ## Starting
 
@@ -57,8 +60,21 @@ Each of the modules uses the same application and log configs. See below for a c
 
 Note the quotes in the *Example* column.
 
+
 ## Deployment
-In progress...
+Navigate to the `scripts/` folder and execute:
+```shell script
+./deploy.sh <absolute_path_to_the_root_folder_of_this_repository>
+```
+`deploy.sh` script performs the following steps:
+1. Checks if *Python* and *pip* are installed.
+2. Installs application dependencies.
+3. Creates `logs/` folder.
+4. Checks if *crontab* installed.
+5. Creates *crontab* jobs.
+
+**IMPORTANT**, you have to set up `config.yaml` (see section *Application config*) and encrypt passwords (see section
+*Installation*) on your own. 
 
 ## Docker for development
 To develop inside the Docker container **from the root directory** execute the following (for Windows only):
