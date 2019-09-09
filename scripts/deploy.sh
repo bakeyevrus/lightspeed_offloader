@@ -18,7 +18,7 @@ if ! command python3 -m pip --version &>/dev/null; then
 fi
 
 echo "Installing app dependencies..."
-python3 -m pip install -r ./requirements.txt
+python3 -m pip install -r ../requirements.txt
 if [ $? -ne 0 ]; then
   echo "ERROR: Failed to install app dependencies"
   exit 1
