@@ -12,13 +12,13 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 
-if ! command python -m pip --version &>/dev/null; then
+if ! command python3 -m pip --version &>/dev/null; then
   echo "ERROR: pip is not installed for the current system"
   exit 1
 fi
 
 echo "Installing app dependencies..."
-pip install -r ../requirements.txt
+python3 -m pip install -r ./requirements.txt
 if [ $? -ne 0 ]; then
   echo "ERROR: Failed to install app dependencies"
   exit 1
@@ -37,8 +37,8 @@ fi
 PY_PATH=`which python`
 CRONTAB_FILE=crontab.tmp
 echo "Creating crontab..."
-echo "0 0,8,16 * * * cd $1 && $PY_PATH -m lightspeed_offloader -c config/application.yaml -l config/logging.yaml 2>&1 1>> logs/stacktrace.log" >> ${CRONTAB_FILE}
-echo "30 0,8,16 * * * cd $1 && $PY_PATH -m status_checker -c config/application.yaml -l config/logging.yaml 2>&1 1>> logs/stacktrace.log" >> ${CRONTAB_FILE}
+echo "0 8,10,12,14,16,18,20 * * * cd $1 && $PY_PATH -m lightspeed_offloader -c config/application.yaml -l config/logging.yaml >> logs/stacktrace.log 2>&1" >> ${CRONTAB_FILE}
+echo "5 8,10,12,14,16,18,20 * * * cd $1 && $PY_PATH -m status_checker -c config/application.yaml -l config/logging.yaml >> logs/stacktrace.log 2>&1" >> ${CRONTAB_FILE}
 crontab ${CRONTAB_FILE}
 if [ $? -ne 0 ]
 then

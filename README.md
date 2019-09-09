@@ -23,7 +23,7 @@ environment is located in section *Deployment*.
 3. The application requires SFTP password and Lightspeed API secret to be present in config file. For the sake of security,
     these strings should be encrypted using `password_encryption.py` utility. From the root directory execute:
     ```shell script
-    python common/password_encryption.py -w <path_to_the_output_file>.enc
+    python shared/password_encryption.py -w <path_to_the_output_file>.enc
     ```
    You will be asked for the master password, which should be added to the application config. 
 
@@ -62,6 +62,10 @@ Note the quotes in the *Example* column.
 
 
 ## Deployment
+Make sure that Python 3 is available by executing in terminal:
+```shell script
+python3 --version
+```
 Navigate to the `scripts/` folder and execute:
 ```shell script
 ./deploy.sh <absolute_path_to_the_root_folder_of_this_repository>
