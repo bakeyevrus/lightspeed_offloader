@@ -102,8 +102,7 @@ def _process_row(row, lightspeed_client, lightspeed_shipment_id, lightspeed_ship
 
     if not validation["validated"]:
         err_message = (f"Checkout {checkout_id} haven't passed validation\n"
-                       f"Validation errors: {validation['errors']}\n"
-                       f"Checkout: {checkout}")
+                       f"Validation errors: {validation['errors']}")
         raise ProcessOrderException(err_message)
 
     order_id = lightspeed_client.finish_checkout(checkout_id)
@@ -127,14 +126,12 @@ def _generate_checkout(row):
     def _generate_address(exported_order):
         return {
             "name": exported_order[ExportedOrderCSV.FIRST_NAME] + " " + exported_order[ExportedOrderCSV.LAST_NAME],
-            "address1": exported_order[ExportedOrderCSV.ADDRESS_STREET] + " " + exported_order[
-                ExportedOrderCSV.ADDRESS_HOUSE],
+            "address1": exported_order[ExportedOrderCSV.ADDRESS_STREET],
             "address2": exported_order[ExportedOrderCSV.COMPANY],
             "zipcode": exported_order[ExportedOrderCSV.ZIP],
             "city": exported_order[ExportedOrderCSV.CITY],
             "country": exported_order[ExportedOrderCSV.COUNTRY],
-            # House number should be -1 as has been agreed with business
-            "number": "-1"
+            "number": exported_order[ExportedOrderCSV.ADDRESS_HOUSE]
         }
 
     customer = {
@@ -266,18 +263,6 @@ def run(config_path):
     os.makedirs(TMP_FOLDER, exist_ok=True)
 
     _process_files(sftp_client, lspeed_client, lspeed_shipment_id, lspeed_shipment_value_id)
-
-    # # Test code
-    # file = None
-    # try:
-    #     file = open("SAMPLE.csv", "r")
-    #     parsed_file = csv.DictReader(file, delimiter=';')
-    #
-    #     processed_orders = _process_file(parsed_file, lspeed_client, lspeed_shipment_id,
-    #                                      lspeed_shipment_value_id)
-    # finally:
-    #     if file:
-    #         file.close()
 
     log.debug(f"Removing temp '{TMP_FOLDER}' folder")
     shutil.rmtree(TMP_FOLDER)

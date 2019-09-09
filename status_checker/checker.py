@@ -177,25 +177,6 @@ def run(config_path: str):
     os.makedirs(TMP_FOLDER, exist_ok=True)
 
     _process_all_files(sftp_client, lspeed_client)
-    # Test code
-    # orders_map = {}
-    # for file_path in ["SAMPLE_STATUS.csv", "tmp/S-20190904-1316.csv"]:
-    #     log.info(f"Processing file {file_path}")
-    #     file = open(file_path, "r")
-    #
-    #     all_orders_shipped = _process_file(file, orders_map)
-    #
-    #     file.close()
-    #
-    #     file_name = os.path.basename(file_path)
-    #     if all_orders_shipped and _is_file_older_than(file_name, FILE_ARCHIVE_PERIOD):
-    #         log.info(f"Archiving file ${file_name}")
-
-    # shipped_orders = _process_all_confirmed_orders(orders_map, lspeed_client)
-    #
-    # if shipped_orders:
-    #     log.debug(f"Saving {len(shipped_orders)} shipped orders into a CSV file.")
-    #     csv_writer.save_orders_as_csv(TMP_FOLDER, shipped_orders, OrderConfirmationCSV.FIELDNAMES)
 
     log.debug(f"Removing temp '{TMP_FOLDER}' folder")
     shutil.rmtree(TMP_FOLDER)
