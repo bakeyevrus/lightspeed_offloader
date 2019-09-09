@@ -34,7 +34,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-PY_PATH=`which python`
+PY_PATH=`which python3`
 CRONTAB_FILE=crontab.tmp
 echo "Creating crontab..."
 echo "0 8,10,12,14,16,18,20 * * * cd $1 && $PY_PATH -m lightspeed_offloader -c config/application.yaml -l config/logging.yaml >> logs/stacktrace.log 2>&1" >> ${CRONTAB_FILE}
